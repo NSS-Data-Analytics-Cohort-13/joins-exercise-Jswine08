@@ -28,7 +28,7 @@ SELECT
 		s.release_year
 
 
-	,	AVG(r.imdb_rating) AS avg_rating
+	,	ROUND(AVG(r.imdb_rating),3) AS avg_rating
 
 FROM specs AS s
 
@@ -36,7 +36,8 @@ FROM specs AS s
 		ON s.movie_id = r.movie_id
 
 GROUP BY release_year
-ORDER BY avg_rating DESC;
+ORDER BY avg_rating DESC
+LIMIT 1;
 
 --Answer 1991 (7.45)
 
@@ -69,22 +70,18 @@ ORDER BY r.worldwide_gross DESC;
 --4. Write a query that returns, for each distributor in the distributors table, the distributor name and the number of movies associated with that distributor in the movies table. Your result set should include all of the distributors, whether or not they have any movies in the movies table.
 
 SELECT 
-		--d.distributor_id
 		d.company_name
 
-
-	--,	--s.movie_id
 	,	COUNT(s.film_title) AS count_title
-	--,	--s.domestic_distributor_id
 
 FROM distributors AS d
-	FULL JOIN specs AS s
+	LEFT JOIN specs AS s
 	ON d.distributor_id = s.domestic_distributor_id
 	
-GROUP BY d.company_name --, d.distributor_id, s.movie_id, s.domestic_distributor_id
-ORDER BY count_title;
+GROUP BY d.company_name 
+ORDER BY count_title DESC;
 
---Answer run quesry
+--Answer run query
 
 
 --5. Write a query that returns the five distributors with the highest average movie budget.
@@ -105,7 +102,7 @@ ORDER BY avg_budget DESC
 LIMIT 5;
 
 
-SELECT d.company_name, AVG(film_budget) AS avg_budget
+SELECT d.company_name, ROUND(AVG(film_budget),0) ::MONEY AS avg_budget
 FROM distributors AS d
 	INNER JOIN specs AS s
 		ON d.distributor_id=s.domestic_distributor_id
@@ -113,7 +110,7 @@ FROM distributors AS d
 		USING(movie_id)
 GROUP BY d.company_name
 ORDER BY avg_budget DESC
---LIMIT 5;
+LIMIT 5;
 
 
 --Answer "Walt Disney "	148735526.31578947
@@ -140,7 +137,7 @@ FROM distributors AS d
 		ON d.distributor_id=s.domestic_distributor_id
 	INNER JOIN rating AS r
 		ON s.movie_id = r.movie_id
-WHERE d.headquarters NOT LIKE '%, CA'
+WHERE d.headquarters NOT iLIKE '%, CA%'
 GROUP BY --d.distributor_id
 		d.company_name
 	,	d.headquarters 
@@ -167,7 +164,7 @@ SELECT
 FROM specs AS s
 	LEFT JOIN rating AS r
 	ON s.movie_id = r.movie_id
-WHERE (s.length_in_min/60)>'2' OR (s.length_in_min/60)<'2'
+WHERE (s.length_in_min/60)>'2' THEN 'over two hours' OR (s.length_in_min/60)<'2'
 GROUP BY r.imdb_rating, s.movie_id, r.movie_id, s.length_in_min
 HAVING AVG(r.imdb_rating)>8
 ORDER BY hour_movies DESC, r.imdb_rating DESC;
@@ -176,17 +173,136 @@ ORDER BY hour_movies DESC, r.imdb_rating DESC;
 
 SELECT
 	CASE 
-		WHEN s.length_in_min > 120 THEN 'Over 2 hrs'
+		WHEN (s.length_in_min/60) > 2 THEN 'Over 2 hrs'
 		ELSE 'Under 2 hrs' 
 		END AS filtered_length
 ,	ROUND(AVG(r.imdb_rating),2) AS avg_imdb
 FROM specs AS s
-	INNER JOIN rating AS r
+	LEFT JOIN rating AS r
 		ON s.movie_id = r.movie_id
 GROUP BY 
 	filtered_length
 ORDER BY avg_imdb DESC;
 
 
+
+
+SELECT 
+	CASE WHEN length_in_min >=0 AND length_in_min <=120 THEN 'Under 2 Hours' 
+	ELSE 'Over 2 Hours'
+	END AS length_range, 
+	AVG(r.imdb_rating) as avg_rating
+FROM specs as s
+LEFT JOIN rating as r
+USING(movie_id)
+GROUP BY length_range
+ORDER BY avg_rating DESC;
+
+
+
+
+--RENUKA WAY
+
+SELECT 'less than 2 hours' AS movie_length, ROUND(AVG(avg_imdb_rating,2) avg_rating
+
+FROM (
+	SELECT AVG(r.imdb_rating) AS avg_imdb_rating
+	FROM specs AS s
+	INNER JOIN rating r
+		USING(movie_id)
+	GROUP BY s.length_in_min<120
+	)
+UNION ALL
+SELECT 'Greater than 2 hours' AS movie_length, ROUND(AVG(avg_imdb_rating),2) avg_rating
+FROM (
+	SELECT AVG(r.imdb_rating) AS avg_imdb_rating
+	FROM specs AS s
+	INNER JOIN rating r
+		USING(movie_id)
+	GROUP BY s.length_in_min>=120
+	)
+
+
 --Answer  "Over 2 hrs"	7.26
 --"Under 2 hrs"	6.92
+
+
+
+
+
+--------------------------------------------------------------------
+
+
+--BONUS
+
+--worldwide_gross from revenue
+--imdb_rating from rating
+--release_year from specs
+
+-- 1.	Find the total worldwide gross and average imdb rating by decade. Then alter your query so it returns JUST the second highest average imdb rating and its decade. This should result in a table with just one row.
+
+SELECT 
+		SUM(r.worldwide_gross) AS total_gross
+
+	,	AVG(rat.imdb_rating) AS avg_rating
+
+	,	FLOOR(s.release_year/10*10) AS decade
+
+	
+	FROM revenue AS r
+		LEFT JOIN rating as rat
+			USING(movie_id)
+		LEFT JOIN specs AS s
+			USING(movie_id)
+
+GROUP BY decade, rat.imdb_rating
+ORDER BY rat.imdb_rating DESC
+LIMIT 1
+OFFSET 1
+
+
+----------------------------------------------------------------
+
+SELECT 
+		SUM(r.worldwide_gross) AS total_gross
+
+	,	ROUND(AVG(rat.imdb_rating),2) AS avg_imdb
+
+	,	FLOOR(s.release_year/10*10) AS decade
+
+	
+	FROM specs AS s
+		LEFT JOIN revenue AS r
+			USING(movie_id)
+		LEFT JOIN rating AS rat
+			USING(movie_id)
+
+GROUP BY decade
+ORDER BY avg_imdb DESC
+LIMIT 1
+OFFSET 1
+
+--------------------------------------------------------------
+
+SELECT
+	SUM(rev.worldwide_gross) AS sum_gross
+,	ROUND(AVG(rat.imdb_rating),2) AS avg_imdb
+,	FLOOR(s.release_year/10)*10 AS decade
+FROM specs AS s
+	INNER JOIN revenue AS rev
+		ON s.movie_id = rev.movie_id
+	INNER JOIN rating AS rat
+		ON s.movie_id = rat.movie_id
+GROUP BY 
+	decade
+ORDER BY 
+	avg_imdb DESC
+LIMIT 1
+	OFFSET 1;
+
+
+
+
+
+
+
